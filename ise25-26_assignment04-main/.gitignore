@@ -1,0 +1,72 @@
+######################
+# OS generated files #
+######################
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+#Icon?
+ehthumbs.db
+Thumbs.db
+
+##############
+# Java/Scala #
+##############
+*.class
+
+##########################
+# Webstorm/IntelliJ IDEA #
+##########################
+.idea/
+*.iml
+
+######################
+# Visual Studio Code #
+######################
+.vscode/
+
+#########
+# Excel #
+#########
+~$*
+
+###########
+# RStudio #
+###########
+.Rhistory
+.RData
+
+#########
+# Maven #
+##########
+target/
+
+####################
+# Node.js, Angular #
+####################
+
+# Compiled output
+frontend/dist
+application/src/main/resources/static
+
+# Node
+frontend/node
+frontend/node_modules
+frontend/npm-debug.log
+
+# Angular
+frontend/.angular/cache
+
+###############
+# Claude Code #
+###############
+.claude/
+
+########
+# Misc #
+########
+*.log
+*.log.*
+*.lck

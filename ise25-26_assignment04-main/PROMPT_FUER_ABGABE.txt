@@ -1,0 +1,211 @@
+================================================================================
+PROMPT FÜR GENAI-TOOL (Teil c) - OSM Node Import Feature
+================================================================================
+
+You are a senior software engineer working on a Java Spring Boot application.
+Use the information below to implement the OpenStreetMap (OSM) node import 
+feature for the CampusCoffee application.
+
+GOAL
+----
+Feature Goal: Enable the system to import Point-of-Sale (POS) entities from 
+OpenStreetMap nodes by fetching real OSM data via the OSM API and converting 
+it to the internal POS domain model.
+
+Deliverable: 
+- Complete implementation of OsmDataServiceImpl.fetchNode() that fetches real 
+  OSM XML data
+- Extended OsmNode domain model with all relevant OSM tags
+- Complete implementation of PosServiceImpl.convertOsmNodeToPos() that maps 
+  OSM data to POS objects
+
+Success Definition: 
+- The endpoint POST /api/pos/import/osm/{nodeId} successfully imports POS 
+  entities from any valid OSM node
+- OSM node data is fetched from the real OpenStreetMap API 
+  (https://www.openstreetmap.org/api/0.6/node/{id})
+- All required POS fields are correctly extracted from OSM tags
+- Appropriate exceptions are thrown for missing or invalid data
+
+USER PERSONA
+------------
+Target User: API consumers (developers, administrators)
+
+Use Case: Import a new Point-of-Sale location from OpenStreetMap without 
+manually entering all address and metadata information.
+
+User Journey: 
+1. User identifies an OSM node ID (e.g., 5589879349 for "Rada Coffee & Rösterei")
+2. User sends POST request to /api/pos/import/osm/5589879349
+3. System fetches OSM node data from OpenStreetMap API
+4. System extracts relevant information (name, address, type) from OSM tags
+5. System creates/updates POS entity in database
+6. System returns created POS with assigned ID
+
+Pain Points Addressed: 
+- Eliminates manual data entry for POS locations that already exist in OpenStreetMap
+- Ensures data consistency with OpenStreetMap as authoritative source
+- Reduces errors from manual transcription
+
+WHY
+---
+- Business value: Significantly reduces time and effort to add new POS locations 
+  to the system
+- Integration: Builds on existing POS management infrastructure (upsert 
+  functionality already exists)
+- Data quality: Leverages OpenStreetMap's community-maintained, up-to-date 
+  location data
+
+WHAT - TECHNICAL REQUIREMENTS
+-----------------------------
+
+1. OSM API Integration (OsmDataServiceImpl)
+
+Current State: Returns hardcoded data for node 5589879349 only.
+
+Required Implementation:
+- Make HTTP GET request to https://www.openstreetmap.org/api/0.6/node/{nodeId}
+- Parse the returned XML response
+- Extract all <tag> elements with their k (key) and v (value) attributes
+- Map relevant tags to OsmNode domain model
+- Handle HTTP errors (404 → OsmNodeNotFoundException, network errors, etc.)
+
+OSM XML Format Example:
+<osm version="0.6">
+  <node id="5589879349" lat="49.4108" lon="8.7074">
+    <tag k="name" v="Rada Coffee & Rösterei"/>
+    <tag k="amenity" v="cafe"/>
+    <tag k="addr:street" v="Untere Straße"/>
+    <tag k="addr:housenumber" v="21"/>
+    <tag k="addr:postcode" v="69117"/>
+    <tag k="addr:city" v="Heidelberg"/>
+    <tag k="cuisine" v="coffee_shop"/>
+  </node>
+</osm>
+
+Relevant OSM Tags for POS:
+- name → POS name (required)
+- amenity → helps determine PosType (cafe, bakery, cafeteria, vending_machine)
+- addr:street → street name (required)
+- addr:housenumber → house number (required)
+- addr:postcode → postal code (required, must be parseable to Integer)
+- addr:city → city name (required)
+- description or note → POS description (optional, can use empty string if missing)
+
+2. Extend OsmNode Domain Model
+
+Current State: Only contains nodeId.
+
+Required Extension:
+Add fields to store OSM tag data:
+- Map<String, String> tags - all OSM tags as key-value pairs
+- Optionally: Double latitude, Double longitude (from node attributes)
+
+Note: Use @Builder pattern (already present) and ensure immutability.
+
+3. Implement OSM to POS Mapping (PosServiceImpl.convertOsmNodeToPos())
+
+Current State: Hardcoded mapping for node 5589879349 only.
+
+Required Implementation:
+- Extract name from tags → Pos.name (required)
+- Extract description from tags (use description or note tag, or empty string 
+  if missing) → Pos.description
+- Map amenity tag to PosType enum:
+  * cafe, coffee_shop → PosType.CAFE
+  * bakery → PosType.BAKERY
+  * cafeteria, canteen → PosType.CAFETERIA
+  * vending_machine → PosType.VENDING_MACHINE
+  * Default to PosType.CAFE if amenity is missing or unknown
+- Determine CampusType from address (postal code or city):
+  * Postal codes in Heidelberg area → determine campus (ALTSTADT, BERGHEIM, INF)
+  * Default to CampusType.ALTSTADT if cannot be determined
+- Extract address fields:
+  * addr:street → Pos.street (required)
+  * addr:housenumber → Pos.houseNumber (required)
+  * addr:postcode → Pos.postalCode (required, parse to Integer)
+  * addr:city → Pos.city (required)
+
+Error Handling:
+- If any required field is missing → throw OsmNodeMissingFieldsException
+- Validate postal code can be parsed to Integer
+- Log warnings for missing optional fields
+
+SUCCESS CRITERIA
+----------------
+- OsmDataServiceImpl.fetchNode() successfully fetches and parses OSM XML for 
+  any valid node ID
+- OsmNode model contains all relevant OSM tag data
+- convertOsmNodeToPos() correctly maps OSM tags to POS fields for various OSM 
+  nodes
+- Required fields are validated and OsmNodeMissingFieldsException is thrown 
+  when missing
+- OsmNodeNotFoundException is thrown for non-existent node IDs
+- The endpoint POST /api/pos/import/osm/5589879349 successfully creates a POS 
+  entity
+- The endpoint works for other valid OSM cafe/restaurant nodes (not just 
+  5589879349)
+- Code follows existing patterns (logging, error handling, immutability)
+- No hardcoded values remain in the implementation
+
+DOCUMENTATION & REFERENCES
+--------------------------
+MUST READ - Include the following information in your context window:
+
+1. Project Structure: This Java Spring Boot application is structured as a 
+   multi-module Maven project following the ports-and-adapters (hexagonal) 
+   architectural pattern:
+   - api - Maven submodule for controller adapter (REST endpoints)
+   - application - Maven submodule for Spring Boot application, test data 
+     import, and system tests
+   - data - Maven submodule for data adapter (persistence, external APIs)
+   - domain - Maven submodule for domain model, main business logic, and ports
+
+2. Key Files to Review:
+   - data/src/main/java/de/seuhd/campuscoffee/data/impl/OsmDataServiceImpl.java
+   - domain/src/main/java/de/seuhd/campuscoffee/domain/model/OsmNode.java
+   - domain/src/main/java/de/seuhd/campuscoffee/domain/impl/PosServiceImpl.java
+   - domain/src/main/java/de/seuhd/campuscoffee/domain/model/Pos.java
+   - domain/src/main/java/de/seuhd/campuscoffee/domain/model/PosType.java
+   - domain/src/main/java/de/seuhd/campuscoffee/domain/model/CampusType.java
+   - domain/src/main/java/de/seuhd/campuscoffee/domain/exceptions/
+     OsmNodeNotFoundException.java
+   - domain/src/main/java/de/seuhd/campuscoffee/domain/exceptions/
+     OsmNodeMissingFieldsException.java
+
+3. OpenStreetMap API Documentation:
+   - API Endpoint: https://www.openstreetmap.org/api/0.6/node/{nodeId}
+   - Returns XML format with node attributes (id, lat, lon) and tags 
+     (key-value pairs)
+   - Example: https://www.openstreetmap.org/api/0.6/node/5589879349
+
+4. OSM Tag Conventions:
+   - Address tags use addr:* prefix (e.g., addr:street, addr:housenumber)
+   - amenity tag indicates the type of facility
+   - name tag contains the display name
+
+5. Existing Patterns:
+   - Use Lombok @Builder for immutable domain objects
+   - Use @Slf4j for logging
+   - Use @NonNull annotations from org.jspecify.annotations
+   - Follow existing error handling patterns (exceptions are already defined)
+   - Use Spring's RestTemplate or WebClient for HTTP requests (check existing 
+     dependencies)
+
+6. Testing:
+   - Test with node ID 5589879349 (known good example)
+   - Test with invalid node IDs (should throw OsmNodeNotFoundException)
+   - Test with nodes missing required fields (should throw 
+     OsmNodeMissingFieldsException)
+
+IMPLEMENTATION NOTES
+--------------------
+- The endpoint and service method signatures already exist - you only need to 
+  implement the business logic
+- Maintain backward compatibility with existing code
+- Follow the existing code style and patterns
+- Add appropriate logging for debugging and monitoring
+- Consider edge cases (missing tags, malformed data, network errors)
+
+================================================================================
+
